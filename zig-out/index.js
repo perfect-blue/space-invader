@@ -5,86 +5,87 @@ const readCharStr = (ptr, len) => {
   return new TextDecoder("utf-8").decode(bytes);
 }
 
-// initialize canvas
-const canvas = document.getElementById("canvas");
-const gl = canvas.getContext('webgl2');
-gl.viewport(0, 0, canvas.width, canvas.height);
-
-const shaders = [];
-const glPrograms = [];
-const glBuffers = [];
-const glUniformLocations = [];
-
-const compileShader = (sourcePtr, sourceLen, type) => {
-  const source = readCharStr(sourcePtr, sourceLen);
-  const shader = gl.createShader(type);
-  gl.shaderSource(shader, source);
-  gl.compileShader(shader);
-  if(!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    throw "Error compiling shader:" + gl.getShaderInfoLog(shader);
-  }
-  shaders.push(shader);
-  return shaders.length - 1;
-}
-
-const linkShaderProgram = (vertexShaderId, fragmentShaderId) => {
-  const program = gl.createProgram();
-  gl.attachShader(program, shaders[vertexShaderId]);
-  gl.attachShader(program, shaders[fragmentShaderId]);
-  gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    throw ("Error linking program:" + gl.getProgramInfoLog (program));
-  }
-  glPrograms.push(program);
-  return glPrograms.length - 1;
-}
-
 class WasmHandler {
     constructor(gl) {
         this.gl = gl;
+        this.shaders = [];
+        this.glPrograms = [];
+        this.glBuffers = [];
+        this.glUniformLocations = [];
         this.memory = null;
     }
 
-    linkShaderProgram(vertexShaderId, fragmentShaderId){};
-    bind2DFloat32Data(ptr, len) {};
-    glCreateVertexArray(){};
-    glDeleteVertexArray(id){};
-    glCreateBuffer(){};
-    glDeleteBuffer(){};
-
+    compileShader (sourcePtr, sourceLen, type) {
+        const source = readCharStr(sourcePtr, sourceLen);
+        const shader = this.gl.createShader(type);
+        this.gl.shaderSource(shader, source);
+        this.gl.compileShader(shader);
+        if(!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
+            throw "Error compiling shader:" + this.gl.getShaderInfoLog(shader);
+        }
+        this.shaders.push(shader);
+        return this.shaders.length - 1;
+    }
+      
+    linkShaderProgram (vertexShaderId, fragmentShaderId) {
+        const program = this.gl.createProgram();
+        this.gl.attachShader(program, this.shaders[vertexShaderId]);
+        this.gl.attachShader(program, this.shaders[fragmentShaderId]);
+        this.gl.linkProgram(program);
+        if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
+            throw ("Error linking program:" + this.gl.getProgramInfoLog (program));
+        }
+        this.glPrograms.push(program);
+        return this.glPrograms.length - 1;
+    }
 }
 
 // initiate wasm module
 async function instantiateWasmModule(wasm_handlers) {
     const wasmEnv = {
         env: {
-            compileShader: compileShader,
-            linkShaderProgram: linkShaderProgram,
-            glClearColor: (r, g, b, a) => gl.clearColor(r, g, b, a),
-            glEnable: x => gl.enable(x),
-            glDepthFunc: x => gl.depthFunc(x),
-            glClear: x => gl.clear(x),
-            glGetAttribLocation: (programId, namePtr, nameLen) => gl.getAttribLocation(glPrograms[programId], readCharStr(namePtr, nameLen)),
+            compileShader: wasm_handlers.compileShader.bind(wasm_handlers),
+            linkShaderProgram: wasm_handlers.linkShaderProgram.bind(wasm_handlers),
+            glClearColor: (r, g, b, a) => wasm_handlers.gl.clearColor(r, g, b, a),
+            glEnable: x => wasm_handlers.gl.enable(x),
+            glDepthFunc: x => wasm_handlers.gl.depthFunc(x),
+            glClear: x => wasm_handlers.gl.clear(x),
+            glGetAttribLocation: (programId, namePtr, nameLen) => {
+                wasm_handlers.gl.getAttribLocation(
+                    wasm_handlers.glPrograms[programId],
+                    readCharStr(namePtr, nameLen)
+                )
+            },
             glGetUniformLocation: (programId, namePtr, nameLen) =>  {
-                glUniformLocations.push(gl.getUniformLocation(glPrograms[programId], readCharStr(namePtr, nameLen)));
-                return glUniformLocations.length - 1;
+                wasm_handlers.glUniformLocations.push(
+                    wasm_handlers.gl.getUniformLocation(
+                        wasm_handlers.glPrograms[programId],
+                        readCharStr(namePtr, nameLen)
+                    )
+                );
+                return wasm_handlers.glUniformLocations.length - 1;
             },
-            glUniform4fv: (locationId, x, y, z, w) => gl.uniform4fv(glUniformLocations[locationId], [x, y, z, w]),
+            glUniform4fv: (locationId, x, y, z, w) => {
+                wasm_handlers.gl.uniform4fv(
+                    wasm_handlers.glUniformLocations[locationId],
+                    [x, y, z, w]
+                )
+            },
             glCreateBuffer: () => {
-                glBuffers.push(gl.createBuffer());
-                return glBuffers.length - 1;
+                wasm_handlers.glBuffers.push(wasm_handlers.gl.createBuffer());
+                return wasm_handlers.glBuffers.length - 1;
             },
-            glBindBuffer: (type, bufferId) => gl.bindBuffer(type, glBuffers[bufferId]),
+            glBindBuffer: (type, bufferId) => wasm_handlers.gl.bindBuffer(type, wasm_handlers.glBuffers[bufferId]),
             glBufferData: (type, dataPtr, count, drawType) => {
                 const floats = new Float32Array(memory.buffer, dataPtr, count);
-                gl.bufferData(type, floats, drawType);
+                wasm_handlers.gl.bufferData(type, floats, drawType);
             },
-            glUseProgram: (programId) => gl.useProgram(glPrograms[programId]),
-            glEnableVertexAttribArray: (x) => gl.enableVertexAttribArray(x),
+            glUseProgram: (programId) => wasm_handlers.gl.useProgram(wasm_handlers.glPrograms[programId]),
+            glEnableVertexAttribArray: (x) => wasm_handlers.gl.enableVertexAttribArray(x),
             glVertexAttribPointer: (attribLocation, size, type, normalize, stride, offset) => {
-                gl.vertexAttribPointer(attribLocation, size, type, normalize, stride, offset);
+                wasm_handlers.gl.vertexAttribPointer(attribLocation, size, type, normalize, stride, offset);
             },
-            glDrawArrays: (type, offset, count) => gl.drawArrays(type, offset, count)
+            glDrawArrays: (type, offset, count) => wasm_handlers.gl.drawArrays(type, offset, count)
         }
     }
 
@@ -100,7 +101,12 @@ async function instantiateWasmModule(wasm_handlers) {
 }
 
 async function init() {
-    const wasm_handler = new WasmHandler();
+    // initialize canvas
+    const canvas = document.getElementById("canvas");
+    const gl = canvas.getContext('webgl2');
+    gl.viewport(0, 0, canvas.width, canvas.height);
+
+    const wasm_handler = new WasmHandler(gl);
     const mod = await instantiateWasmModule(wasm_handler);
 
     memory = wasm_handler.memory;
