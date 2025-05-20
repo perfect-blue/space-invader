@@ -1,3 +1,7 @@
+const std = @import("std");
+extern fn logWasm(s: [*]const u8, len: usize) void;
+extern fn logf32(x: f32) void;
+
 // Shaders
 extern fn compileShader(source: *const u8, len: c_uint, type: c_uint) c_uint;
 extern fn linkShaderProgram(vertexShaderId: c_uint, fragmentShaderId: c_uint) c_uint;
@@ -45,12 +49,78 @@ const fragmentShader =
     \\}
 ;
 
+const InputState = struct {
+    move_left: bool,
+    move_right: bool,
+    shoot: bool,
+
+    pub fn init() InputState {
+        return InputState{
+            .move_left = false,
+            .move_right = false,
+            .shoot = false,
+        };
+    }
+};
+
+const GameState = struct {
+    x: f32,
+    y: f32,
+
+    pub fn init() GameState {
+        return GameState{
+            .x = 0.0,
+            .y = 0.0,
+        };
+    }
+};
+
 const positions = [_]f32{ 0, 0, 0, 0.5, 0.7, 0 };
 
 var program_id: c_uint = undefined;
 var positionAttributeLocation: c_int = undefined;
 var offsetUniformLocation: c_int = undefined;
 var positionBuffer: c_uint = undefined;
+var inputState: InputState = InputState.init();
+var gameState: GameState = GameState.init();
+export fn getInputStatePointer() *InputState {
+    return &inputState;
+}
+
+// // canvas input
+// export fn keyDown(ptr: [*]const u8, len: usize) void {
+//     const input = ptr[0..len];
+
+//     // 'a' and 'd' are u8 literals for ASCII characters
+//     if (input[0] == 'a') {
+//         inputState.move_left = true;
+//         logBoolean(inputState.move_left);
+//     } else if (input[0] == 'd') {
+//         inputState.move_right = true;
+//     }
+// }
+
+// export fn keyUp(ptr: [*]const u8, len: usize) void {
+//     const input = ptr[0..len];
+
+//     if (input[0] == 'a') {
+//         inputState.move_left = false;
+//     } else if (input[0] == 'd') {
+//         inputState.move_right = false;
+//     }
+// }
+
+export fn updateAction(deltatime: c_int, control: *InputState, game: *GameState) void {
+    const movement_speed: f32 = 2.0;
+    const delta = @as(f32, @floatFromInt(deltatime)) / 1000.0;
+    if (control.move_left) {
+        game.x += movement_speed * delta;
+        logf32(game.x);
+    } else if (control.move_right) {
+        game.x -= movement_speed * delta;
+        logf32(game.x);
+    }
+}
 
 export fn onInit() void {
     glClearColor(0.1, 0.1, 0.1, 1.0);
@@ -85,6 +155,7 @@ export fn onAnimationFrame(timestamp: c_int) void {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glUseProgram(program_id);
+    updateAction(delta, &inputState, &gameState);
     glEnableVertexAttribArray(@as(c_uint, @intCast(positionAttributeLocation)));
     glBindBuffer(GL_ARRAY_BUFFER, positionBuffer);
     glVertexAttribPointer(@as(c_uint, @intCast(positionAttributeLocation)), 2, GL_f32, 0, 0, 0);
