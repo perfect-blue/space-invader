@@ -75,7 +75,11 @@ const GameState = struct {
     }
 };
 
-const positions = [_]f32{ 0, 0, 0, 0.5, 0.7, 0 };
+const positions = [_]f32{
+    -0.5, -1.0,
+    0.0,  -0.3,
+    0.5,  -1.0,
+};
 
 var program_id: c_uint = undefined;
 var positionAttributeLocation: c_int = undefined;
@@ -86,29 +90,6 @@ var gameState: GameState = GameState.init();
 export fn getInputStatePointer() *InputState {
     return &inputState;
 }
-
-// // canvas input
-// export fn keyDown(ptr: [*]const u8, len: usize) void {
-//     const input = ptr[0..len];
-
-//     // 'a' and 'd' are u8 literals for ASCII characters
-//     if (input[0] == 'a') {
-//         inputState.move_left = true;
-//         logBoolean(inputState.move_left);
-//     } else if (input[0] == 'd') {
-//         inputState.move_right = true;
-//     }
-// }
-
-// export fn keyUp(ptr: [*]const u8, len: usize) void {
-//     const input = ptr[0..len];
-
-//     if (input[0] == 'a') {
-//         inputState.move_left = false;
-//     } else if (input[0] == 'd') {
-//         inputState.move_right = false;
-//     }
-// }
 
 export fn updateAction(deltatime: c_int, control: *InputState, game: *GameState) void {
     const movement_speed: f32 = 2.0;
@@ -145,21 +126,18 @@ export fn onInit() void {
 }
 
 var previous: c_int = 0;
-var x: f32 = 0;
 
 export fn onAnimationFrame(timestamp: c_int) void {
     const delta = if (previous > 0) timestamp - previous else 0;
-    x += @as(f32, @floatFromInt(delta)) / 1000.0;
-    if (x > 1) x = -2;
+    updateAction(delta, &inputState, &gameState);
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glUseProgram(program_id);
-    updateAction(delta, &inputState, &gameState);
     glEnableVertexAttribArray(@as(c_uint, @intCast(positionAttributeLocation)));
     glBindBuffer(GL_ARRAY_BUFFER, positionBuffer);
     glVertexAttribPointer(@as(c_uint, @intCast(positionAttributeLocation)), 2, GL_f32, 0, 0, 0);
-    glUniform4fv(offsetUniformLocation, x, 0.0, 0.0, 0.0);
+    glUniform4fv(offsetUniformLocation, gameState.x, 0.0, 0.0, 0.0);
     glDrawArrays(GL_TRIANGLES, 0, 3);
     previous = timestamp;
 }

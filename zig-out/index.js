@@ -69,8 +69,6 @@ class WasmHandler {
 
     logWasm(s, len) {
         if (len === 0) return;
-
-        // `len` is the number of UTF-16 code units, so 2 bytes per unit
         const u8Buf = new Uint8Array(this.memory.buffer, s, len * 2);
         console.log(new TextDecoder("utf-16le").decode(u8Buf));
     }
@@ -86,38 +84,12 @@ class CanvasInputHandler {
         this.canvas = canvas;
         this.mod = mod;
         this.keysPressed = new Set();
-
-    //   this.memoryBuffer = new Uint8Array(this.mod.instance.exports.memory.buffer);
-
-    //   // Reserve a fixed offset for your shared key string buffer
-    //   this.sharedPtr = 1024;
-    //   this.sharedBufferSize = 256;
         this.memory = this.mod.instance.exports.memory;
         this.inputPtr = this.mod.instance.exports.getInputStatePointer();
-        // InputState struct is 3 bytes: move_left, move_right, shoot (each bool = 1 byte)
         this.inputStateView = new Uint8Array(this.memory.buffer, this.inputPtr, 3);
     }
   
     onKeyDown(ev) {
-        // // check wasd
-        // if (this.keysPressed.has(ev.key)) return;
-        // this.keysPressed.add(ev.key);
-    
-        // const encoder = new TextEncoder();
-        // const encodedKey = encoder.encode(ev.key);
-    
-        // if (encodedKey.length > this.sharedBufferSize) {
-        //   console.error("Key string too long for shared buffer");
-        //   return;
-        // }
-
-        // // Clear the buffer area before writing (optional)
-        // this.memoryBuffer.fill(0, this.sharedPtr, this.sharedPtr + this.sharedBufferSize);
-
-        // // Write encoded string to shared WASM memory buffer
-        // this.memoryBuffer.set(encodedKey, this.sharedPtr);
-
-        // this.mod.instance.exports.keyDown(this.sharedPtr, encodedKey.length);
         if(ev.key == 'a') {
             this.inputStateView[0] = 1;
         }else if(ev.key == 'd') {
@@ -128,23 +100,6 @@ class CanvasInputHandler {
     }
     
     onKeyUp(ev) {
-        // if (!this.keysPressed.has(ev.key)) return;
-        // this.keysPressed.delete(ev.key);
-    
-        // // Notify WASM using the same shared buffer
-        // const encoder = new TextEncoder();
-        // const encodedKey = encoder.encode(ev.key);
-    
-        // if (encodedKey.length > this.sharedBufferSize) {
-        //   console.error("Key string too long for shared buffer");
-        //   return;
-        // }
-    
-        // // Write encoded string again to shared buffer (optional, depending on WASM impl)
-        // this.memoryBuffer.fill(0, this.sharedPtr, this.sharedPtr + this.sharedBufferSize);
-        // this.memoryBuffer.set(encodedKey, this.sharedPtr);
-    
-        // this.mod.instance.exports.keyUp(this.sharedPtr, encodedKey.length);
         if(ev.key == 'a') {
             this.inputStateView[0] = 0;
         }else if(ev.key == 'd') {
@@ -162,13 +117,10 @@ class CanvasInputHandler {
     }
   
     setCanvasCallbacks() {
-        // window.onresize = this.onResize.bind(this);
         this.canvas.addEventListener('keydown', this.onKeyDown.bind(this));
         this.canvas.addEventListener('keyup', this.onKeyUp.bind(this));
-
-        // Make the canvas focusable to receive keyboard events
         this.canvas.setAttribute('tabindex', '0');
-        this.canvas.focus(); // Initially focus the canvas
+        this.canvas.focus();
     }
   }
 
